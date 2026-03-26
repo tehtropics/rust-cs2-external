@@ -97,7 +97,7 @@ fn run_aimbot(
         .find(|p| p.is_local);
     let Some(local_snap) = local else {
         eprintln!("[aimbot] no local player in entity snapshot (total entities: {})", entities.len());
-        return;
+        return; 
     };
 
     if log {

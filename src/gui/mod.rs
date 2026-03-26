@@ -66,7 +66,7 @@ impl App {
         let mut cfg = self.shared.config.write().unwrap();
         ui.checkbox(&mut cfg.aimbot.enabled, "Enable aimbot");
         ui.add_enabled_ui(cfg.aimbot.enabled, |ui| {
-            ui.add(egui::Slider::new(&mut cfg.aimbot.fov, 1.0..=180.0).text("FOV"));
+            ui.add(egui::Slider::new(&mut cfg.aimbot.fov, 0.5..=45.0).step_by(0.5).text("FOV"));
             ui.add(egui::Slider::new(&mut cfg.aimbot.smooth, 1.0..=20.0).text("Smooth"));
             ui.horizontal(|ui| {
                 ui.label("Bone:");
@@ -132,9 +132,12 @@ impl App {
             ui.checkbox(&mut cfg.visuals.names,      "Names");
             ui.checkbox(&mut cfg.visuals.team_check, "Skip teammates");
             ui.checkbox(&mut cfg.visuals.fov_circle, "Aimbot FOV circle");
+            ui.checkbox(&mut cfg.visuals.skeletons,  "Skeletons");
             ui.separator();
-            color_edit(ui, "Box color",  &mut cfg.visuals.box_color);
-            color_edit(ui, "Name color", &mut cfg.visuals.name_color);
+            color_edit(ui, "Box color",             &mut cfg.visuals.box_color);
+            color_edit(ui, "Name color",            &mut cfg.visuals.name_color);
+            color_edit(ui, "Skeleton (enemy)",      &mut cfg.visuals.skeleton_enemy_color);
+            color_edit(ui, "Skeleton (teammate)",   &mut cfg.visuals.skeleton_team_color);
         });
     }
 

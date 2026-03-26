@@ -16,9 +16,9 @@ use std::time::Duration;
 use windows::Win32::Foundation::{COLORREF, HINSTANCE, HWND, LPARAM, LRESULT, RECT, WPARAM};
 use windows::Win32::Graphics::Gdi::{
     BitBlt, CreateCompatibleBitmap, CreateCompatibleDC, CreatePen, CreateSolidBrush,
-    DeleteDC, DeleteObject, Ellipse, FillRect, GetDC, ReleaseDC, SelectObject, SetBkMode,
-    SetTextColor, TextOutW, BACKGROUND_MODE, GET_STOCK_OBJECT_FLAGS, HBITMAP, HBRUSH,
-    HGDIOBJ, PEN_STYLE, SRCCOPY,
+    DeleteDC, DeleteObject, Ellipse, FillRect, GetDC, LineTo, MoveToEx, ReleaseDC,
+    SelectObject, SetBkMode, SetTextColor, TextOutW,
+    BACKGROUND_MODE, GET_STOCK_OBJECT_FLAGS, HBITMAP, HBRUSH, HGDIOBJ, PEN_STYLE, SRCCOPY,
 };
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::UI::WindowsAndMessaging::{
@@ -79,6 +79,8 @@ unsafe fn draw(
 
     let [br, bg, bb, _] = cfg.visuals.box_color;
     let [nr, ng, nb, _] = cfg.visuals.name_color;
+    let [ser, seg, seb, _] = cfg.visuals.skeleton_enemy_color;
+    let [str_, stg, stb, _] = cfg.visuals.skeleton_team_color;
 
     // Transparent text background so names don't have a filled rect.
     SetBkMode(hdc, BACKGROUND_MODE(1)); // 1 = TRANSPARENT
@@ -150,17 +152,51 @@ unsafe fn draw(
             let tx = (hx as i32).saturating_sub(label.len() as i32 * 3);
             let _ = TextOutW(hdc, tx, top - 14, &label);
         }
+
+        // ── Skeleton ─────────────────────────────────────────────────────────
+        if cfg.visuals.skeletons {
+            let local_team = entities.iter()
+                .filter_map(|e| e.player.as_ref())
+                .find(|p| p.is_local)
+                .map(|p| p.team)
+                .unwrap_or(0);
+            let (sr, sg, sb) = if snap.is_local || snap.team == local_team {
+                (str_, stg, stb)
+            } else {
+                (ser, seg, seb)
+            };
+
+            let skel_pen  = CreatePen(PEN_STYLE(0), 1, COLORREF(colorref(sr, sg, sb)));
+            let prev_pen  = SelectObject(hdc, HGDIOBJ(skel_pen.0));
+
+            for &(a, b) in crate::config::SKELETON_CONNECTIONS {
+                let pa = snap.bones.get(a).copied().unwrap_or(crate::math::Vec3::ZERO);
+                let pb = snap.bones.get(b).copied().unwrap_or(crate::math::Vec3::ZERO);
+                if pa == crate::math::Vec3::ZERO || pb == crate::math::Vec3::ZERO { continue; }
+
+                let Some((ax, ay)) = state.view_matrix.world_to_screen(pa, sw_f, sh_f) else { continue };
+                let Some((bx, by)) = state.view_matrix.world_to_screen(pb, sw_f, sh_f) else { continue };
+
+                MoveToEx(hdc, ax as i32, ay as i32, None);
+                let _ = LineTo(hdc, bx as i32, by as i32);
+            }
+
+            SelectObject(hdc, prev_pen);
+            DeleteObject(HGDIOBJ(skel_pen.0));
+        }
     }
 
     DeleteObject(HGDIOBJ(box_pen.0));
 
     // ── Aimbot FOV circle ─────────────────────────────────────────────────────
-    // Radius in pixels: (fov_deg / 90) * (screen_width / 2), assuming 90° h-fov.
-    // Uses a circular cone in angle-space matching how angle_fov() measures distance.
+    // Convert FOV degrees to pixels using tangent projection.
+    // CS2 h-fov at 16:9 is ~106°, so half-fov at screen edge = tan(53°)*half_width.
+    // radius = tan(fov_deg/2) / tan(h_fov/2) * (screen_width/2)
     if cfg.visuals.fov_circle && cfg.aimbot.enabled {
         let cx = sw / 2;
         let cy = sh / 2;
-        let radius = ((cfg.aimbot.fov / 90.0) * (sw_f / 2.0)) as i32;
+        let half_hfov_tan = (106.26_f32 / 2.0).to_radians().tan();
+        let radius = ((cfg.aimbot.fov / 2.0).to_radians().tan() / half_hfov_tan * (sw_f / 2.0)) as i32;
 
         let fov_pen   = CreatePen(PEN_STYLE(0), 1, COLORREF(colorref(255, 255, 255)));
         let null_brush = windows::Win32::Graphics::Gdi::GetStockObject(GET_STOCK_OBJECT_FLAGS(5));

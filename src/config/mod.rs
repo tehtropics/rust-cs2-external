@@ -7,6 +7,29 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
 
+// ─── Skeleton connections ─────────────────────────────────────────────────────
+// (from_bone_index, to_bone_index) pairs for CS2 player models.
+
+pub const SKELETON_CONNECTIONS: &[(usize, usize)] = &[
+    // Spine
+    (6, 5),   // head   → neck
+    (5, 4),   // neck   → chest
+    (4, 3),   // chest  → mid-back
+    (3, 2),   // mid    → lower-back
+    (2, 0),   // lower  → pelvis
+    // Right arm
+    (5, 13),  (13, 14),  (14, 15),
+    // Left arm
+    (5, 8),   (8,  9),   (9,  10),
+    // Right leg
+    (0, 22),  (22, 23),  (23, 24),
+    // Left leg
+    (0, 25),  (25, 26),  (26, 27),
+];
+
+/// Highest bone index referenced in SKELETON_CONNECTIONS.
+pub const SKELETON_BONE_COUNT: usize = 28;
+
 // ─── Bone targets ────────────────────────────────────────────────────────────
 
 /// Named bone indices for CS2 player models.
@@ -77,8 +100,11 @@ pub struct VisualsConfig {
     pub team_check: bool,    // skip teammates
     pub box_color: [u8; 4],  // RGBA enemy
     pub name_color: [u8; 4],
+    pub skeleton_enemy_color: [u8; 4],
+    pub skeleton_team_color:  [u8; 4],
     pub overlay_mode:   bool,
     pub fov_circle:     bool,
+    pub skeletons:      bool,
 }
 
 impl Default for VisualsConfig {
@@ -91,8 +117,11 @@ impl Default for VisualsConfig {
             team_check:  true,
             box_color:   [220, 30, 30, 255],
             name_color:  [255, 255, 255, 255],
+            skeleton_enemy_color: [220, 30, 30, 255],
+            skeleton_team_color:  [100, 220, 100, 255],
             overlay_mode:   false,
             fov_circle:     false,
+            skeletons:      false,
         }
     }
 }

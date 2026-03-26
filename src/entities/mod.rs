@@ -39,6 +39,9 @@ pub struct PlayerSnapshot {
     pub velocity:        Vec3,
     pub game_scene_node: usize,
     pub pawn_addr:       usize,
+    /// World-space positions for each bone index 0..SKELETON_BONE_COUNT.
+    /// Zero vector means the bone wasn't readable.
+    pub bones:      Vec<Vec3>,
     /// Entity index of the pawn (lower 15 bits of m_hPlayerPawn handle).
     /// This is what m_iIDEntIndex reports when the crosshair is on this player.
     pub pawn_index: i32,
@@ -154,6 +157,21 @@ fn build_player_snapshot(
     let origin           = pawn.abs_origin();
     let game_scene_node  = pawn.game_scene_node_ptr();
 
+    // Read bone positions for skeleton ESP.
+    let mut bones = vec![Vec3::ZERO; crate::config::SKELETON_BONE_COUNT];
+    let model_state_off = schema.get(fnv1a_const("CSkeletonInstance->m_modelState")) as usize;
+    if model_state_off != 0 && game_scene_node != 0 {
+        let bone_array = mem.read::<usize>(game_scene_node + model_state_off + 0x80);
+        if bone_array != 0 {
+            for i in 0..crate::config::SKELETON_BONE_COUNT {
+                let pos = mem.read::<Vec3>(bone_array + i * 0x20);
+                if pos != Vec3::ZERO {
+                    bones[i] = pos;
+                }
+            }
+        }
+    }
+
     Some(PlayerSnapshot {
         name:            ctrl.player_name(),
         health:          pawn.health(),
@@ -168,6 +186,7 @@ fn build_player_snapshot(
         velocity:        pawn.velocity(),
         game_scene_node,
         pawn_addr,
+        bones,
         pawn_index:      (pawn_handle & 0x7FFF) as i32,
     })
 }
